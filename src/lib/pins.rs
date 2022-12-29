@@ -20,9 +20,22 @@ fn configure_pa8(port: &GPIOA) {
     port.afrh.modify(|_, w| w.afrh8().af1());
 }
 
+// Pin A9 shall serve as the trigger to the proximity sensor.
+// TIM1 CH2 controls the output.
+pub fn configure_pa9(port: &GPIOA) {
+    port.moder.modify(|_, w| w.moder9().alternate());
+    port.afrh.modify(|_, w| w.afrh9().af1());
+}
+
+// Pin B8 shall serve as the pin to measure distance from the proximity sensor.
+// TIM4 CH3 is fed the pin input.
+pub fn configure_pb8(port: &GPIOB) {
+    port.moder.modify(|_, w| w.moder8().alternate());
+    port.afrh.modify(|_, w| w.afrh8().af2());
+}
+
 fn configure_pb10(port: &GPIOB) {
     port.moder.modify(|_, w| w.moder10().alternate());
-    port.otyper.modify(|_, w| w.ot10().push_pull());
     port.afrh.modify(|_, w| w.afrh10().af1());
 }
 

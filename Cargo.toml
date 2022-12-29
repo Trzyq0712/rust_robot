@@ -33,6 +33,11 @@ name = "playground"
 test = false
 bench = false
 
+[[bin]]
+name = "distance"
+test = false
+bench = false
+
 [lib]
 name = "my_hal"
 path = "src/lib/mod.rs"
