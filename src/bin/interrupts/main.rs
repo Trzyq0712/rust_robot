@@ -28,8 +28,6 @@ fn main() -> ! {
     let dp = stm32::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
 
-    dp.RCC.cfgr.modify(|_, w| w.sw().hsi());
-
     dp.RCC.ahb1enr.modify(|_, w| w.gpiocen().enabled());
     dp.RCC.apb1enr.modify(|_, w| w.tim2en().enabled());
 
@@ -37,17 +35,15 @@ fn main() -> ! {
     dp.GPIOC.otyper.modify(|_, w| w.ot13().push_pull());
 
     intr::free(|cs| {
-        dp.TIM2.arr.write(|w| w.arr().bits(16_000_000));
+        dp.TIM2.arr.write(|w| w.arr().bits(0xFF));
         dp.TIM2.cr1.write(|w| {
             w.urs().counter_only();
             w.arpe().enabled();
             w.cen().enabled()
         });
         dp.TIM2.dier.modify(|_, w| w.uie().enabled());
-        dp.TIM2.psc.write(|w| w.psc().bits(1));
+        dp.TIM2.psc.write(|w| w.psc().bits(0xFFFF));
         dp.TIM2.egr.write(|w| w.ug().update());
-
-        // TIM2 should interrupt every 2 seconds
 
         G_TIM2.borrow(cs).replace(Some(dp.TIM2));
     });
@@ -70,7 +66,7 @@ fn main() -> ! {
                 .bits())
         );
         rprintln!("Counter: {}", G_INTR_COUNTER.load(Ordering::Relaxed));
-        asm::delay(50_000_000);
+        asm::delay(5_000_000);
     }
 }
 
