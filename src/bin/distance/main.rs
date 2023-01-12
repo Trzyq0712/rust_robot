@@ -2,7 +2,7 @@
 #![no_std]
 #![allow(unused)]
 
-use core::borrow::BorrowMut;
+use core::borrow::{Borrow, BorrowMut};
 use core::cell::{Cell, RefCell};
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -19,11 +19,15 @@ use stm32f4::{stm32f401 as stm32, Reg};
 use rtt_target::{rprintln, rtt_init_print};
 
 struct DistMes {
-    tim: stm32::TIM4,
-    distance: u32,
+    front: u16,
+    side: u16,
 }
 
-static G_DIST_MES: Mutex<RefCell<Option<DistMes>>> = Mutex::new(RefCell::new(None));
+static G_DISTANCES: Mutex<RefCell<DistMes>> =
+    Mutex::new(RefCell::new(DistMes { front: 0, side: 0 }));
+
+static G_TIM4: Mutex<RefCell<Option<stm32::TIM4>>> = Mutex::new(RefCell::new(None));
+static G_TIM9: Mutex<RefCell<Option<stm32::TIM9>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
@@ -35,39 +39,51 @@ fn main() -> ! {
     let rcc = dp.RCC;
     rcc.ahb1enr.write(|w| {
         w.gpioaen().enabled();
-        w.gpioben().enabled()
+        w.gpioben().enabled();
+        w.gpiocen().enabled()
     });
     rcc.apb1enr.write(|w| {
-        w.tim4en().enabled();
-        w.tim5en().enabled()
+        w.tim2en().enabled();
+        w.tim4en().enabled()
     });
-    rcc.apb2enr.write(|w| w.tim1en().enabled());
+    rcc.apb2enr.write(|w| w.tim9en().enabled());
 
-    let tim1 = dp.TIM1;
-    timers::configure_tim1(&tim1);
+    pins::configure_pa2(&dp.GPIOA);
+    pins::configure_pa3(&dp.GPIOA);
+
+    pins::configure_pb8(&dp.GPIOB);
+    pins::configure_pb9(&dp.GPIOB);
+
+    let tim2 = dp.TIM2;
+    timers::configure_tim2(&tim2);
+    tim2.cr1.modify(|_, w| w.cen().enabled());
 
     let tim4 = dp.TIM4;
     timers::configure_tim4(&tim4);
+    tim4.cr1.modify(|_, w| w.cen().enabled());
 
-    let tim5 = dp.TIM5;
-    timers::configure_tim5(&tim5);
-    tim5.cr1.modify(|_, w| w.cen().enabled());
+    let tim9 = dp.TIM9;
+    timers::configure_tim9(&tim9);
+    tim9.cr1.modify(|_, w| w.cen().enabled());
 
-    let dist_mes = DistMes {
-        tim: tim4,
-        distance: Default::default(),
-    };
+    dp.GPIOC.moder.modify(|_, w| w.moder13().output());
+    dp.GPIOC.otyper.modify(|_, w| w.ot13().push_pull());
+    dp.GPIOC.odr.modify(|_, w| w.odr13().high());
 
-    intr::free(|cs| G_DIST_MES.borrow(cs).replace(Some(dist_mes)));
+    intr::free(|cs| {
+        G_TIM4.borrow(cs).replace(Some(tim4));
+        G_TIM9.borrow(cs).replace(Some(tim9));
+    });
 
     unsafe {
         stm32::NVIC::unmask(stm32::interrupt::TIM4);
+        stm32::NVIC::unmask(stm32::interrupt::TIM1_BRK_TIM9);
     }
 
     loop {
-        rprintln!("Loop");
-        let d = intr::free(|cs| G_DIST_MES.borrow(cs).borrow().as_ref().unwrap().distance);
-        rprintln!("Distance is {}", d);
+        dp.GPIOC.odr.modify(|r, w| w.odr13().bit(!r.odr13().bit()));
+        rprintln!("{}", tim2.cnt.read().bits());
+        // rprintln!("{}", tim9.cnt.read().bits());
         asm::delay(10_000_000);
     }
 }
@@ -75,14 +91,45 @@ fn main() -> ! {
 #[interrupt]
 fn TIM4() {
     rprintln!("Interrupt");
+    let (front, side) = intr::free(|cs| {
+        let mut tim4 = G_TIM4.borrow(cs).take().unwrap();
+        let sr = &tim4.sr;
+        let front = sr
+            .read()
+            .cc3if()
+            .bit_is_set()
+            .then_some(tim4.ccr3().read().ccr().bits());
+        let side = sr
+            .read()
+            .cc4if()
+            .bit_is_set()
+            .then_some(tim4.ccr4().read().ccr().bits());
+        sr.modify(|_, w| {
+            w.cc3of()
+                .clear_bit()
+                .cc4of()
+                .clear_bit()
+                .cc3if()
+                .clear_bit()
+                .cc4if()
+                .clear_bit()
+        });
+        G_TIM4.borrow(cs).replace(Some(tim4));
+        (front, side)
+    });
+    rprintln!("{:?} {:?}", front, side);
+}
+
+#[interrupt]
+fn TIM1_BRK_TIM9() {
+    rprintln!("TIM9");
     intr::free(|cs| {
-        let mut dist_mes = G_DIST_MES.borrow(cs).take().unwrap();
-        let measurement = dist_mes.tim.ccr3().read().ccr().bits();
-        dist_mes.tim.sr.modify(|_, w| w.cc3if().clear());
-        let dist_cm = measurement as u32 * 8 / 58;
-        G_DIST_MES.borrow(cs).replace(Some(DistMes {
-            tim: dist_mes.tim,
-            distance: dist_cm,
-        }));
+        G_TIM9
+            .borrow(cs)
+            .borrow_mut()
+            .as_ref()
+            .unwrap()
+            .sr
+            .modify(|_, w| w.uif().clear_bit())
     });
 }
