@@ -1,11 +1,11 @@
 pub struct DistanceMeasurer {
     rising: Option<u16>,
-    distance: u16,
+    time_us: u16,
 }
 
 impl DistanceMeasurer {
     pub fn get_distance_cm(&self) -> u16 {
-        self.distance / 58
+        self.time_us / 58
     }
 
     /// The t should be given in microseconds
@@ -13,7 +13,7 @@ impl DistanceMeasurer {
         self.rising = match self.rising {
             None => Some(t),
             Some(p) => {
-                self.distance = t.wrapping_sub(p);
+                self.time_us = t.wrapping_sub(p);
                 None
             }
         }
@@ -22,7 +22,7 @@ impl DistanceMeasurer {
     pub const fn new() -> Self {
         Self {
             rising: None,
-            distance: u16::MAX,
+            time_us: u16::MAX,
         }
     }
 }
