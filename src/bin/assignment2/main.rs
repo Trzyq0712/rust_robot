@@ -1,33 +1,31 @@
 #![no_main]
 #![no_std]
-#![allow(unused)]
 
-use core::borrow::{Borrow, BorrowMut};
-use core::cell::{Cell, RefCell};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::cell::RefCell;
 
-use my_hal::{pins, timers};
+use my_hal::{distance::DistanceMeasurer, pins, timers};
 
 // Halt on panic
 use panic_halt as _; // panic handler
 
 use cortex_m::{asm, interrupt as intr, interrupt::Mutex};
-use cortex_m_rt::{entry, exception};
+use cortex_m_rt::entry;
 use stm32::interrupt;
-use stm32f4::{stm32f401 as stm32, Reg};
+use stm32f4::stm32f401 as stm32;
 
 use rtt_target::{rprintln, rtt_init_print};
 
-struct DistMes {
-    front: u16,
-    side: u16,
+struct Measurements {
+    front: DistanceMeasurer,
+    side: DistanceMeasurer,
 }
 
-static G_DISTANCES: Mutex<RefCell<DistMes>> =
-    Mutex::new(RefCell::new(DistMes { front: 0, side: 0 }));
+static G_DISTANCES: Mutex<RefCell<Measurements>> = Mutex::new(RefCell::new(Measurements {
+    front: DistanceMeasurer::new(),
+    side: DistanceMeasurer::new(),
+}));
 
 static G_TIM4: Mutex<RefCell<Option<stm32::TIM4>>> = Mutex::new(RefCell::new(None));
-static G_TIM9: Mutex<RefCell<Option<stm32::TIM9>>> = Mutex::new(RefCell::new(None));
 
 #[entry]
 fn main() -> ! {
@@ -64,7 +62,6 @@ fn main() -> ! {
 
     let tim9 = dp.TIM9;
     timers::configure_tim9(&tim9);
-    tim9.cr1.modify(|_, w| w.cen().enabled());
 
     dp.GPIOC.moder.modify(|_, w| w.moder13().output());
     dp.GPIOC.otyper.modify(|_, w| w.ot13().push_pull());
@@ -72,27 +69,24 @@ fn main() -> ! {
 
     intr::free(|cs| {
         G_TIM4.borrow(cs).replace(Some(tim4));
-        G_TIM9.borrow(cs).replace(Some(tim9));
     });
 
     unsafe {
         stm32::NVIC::unmask(stm32::interrupt::TIM4);
-        stm32::NVIC::unmask(stm32::interrupt::TIM1_BRK_TIM9);
     }
 
     loop {
         dp.GPIOC.odr.modify(|r, w| w.odr13().bit(!r.odr13().bit()));
-        rprintln!("{}", tim2.cnt.read().bits());
-        // rprintln!("{}", tim9.cnt.read().bits());
-        asm::delay(10_000_000);
+        let front_dist = intr::free(|cs| G_DISTANCES.borrow(cs).borrow().front.get_distance_cm());
+        rprintln!("Distance: {}", front_dist);
+        asm::delay(2_000_000);
     }
 }
 
 #[interrupt]
 fn TIM4() {
-    rprintln!("Interrupt");
     let (front, side) = intr::free(|cs| {
-        let mut tim4 = G_TIM4.borrow(cs).take().unwrap();
+        let tim4 = G_TIM4.borrow(cs).take().unwrap();
         let sr = &tim4.sr;
         let front = sr
             .read()
@@ -117,19 +111,12 @@ fn TIM4() {
         G_TIM4.borrow(cs).replace(Some(tim4));
         (front, side)
     });
-    rprintln!("{:?} {:?}", front, side);
-}
-
-#[interrupt]
-fn TIM1_BRK_TIM9() {
-    rprintln!("TIM9");
     intr::free(|cs| {
-        G_TIM9
-            .borrow(cs)
-            .borrow_mut()
-            .as_ref()
-            .unwrap()
-            .sr
-            .modify(|_, w| w.uif().clear_bit())
+        let mut distances = G_DISTANCES.borrow(cs).borrow_mut();
+        front
+            .into_iter()
+            .for_each(|t| distances.front.update_measurment(t));
+        side.into_iter()
+            .for_each(|t| distances.side.update_measurment(t));
     });
 }

@@ -10,6 +10,10 @@ use stm32f4::stm32f401 as stm32;
 
 use my_hal::{pins, timers};
 
+fn delay_ms(ms: u32) {
+    asm::delay(16_000 * ms);
+}
+
 #[entry]
 fn main() -> ! {
     let dp = stm32::Peripherals::take().unwrap();
@@ -24,17 +28,16 @@ fn main() -> ! {
 
     loop {
         use timers::Direction::*;
-        timers::set_left_motor_duty(&tim3, u16::MAX >> 1, Forward);
-        timers::set_right_motor_duty(&tim3, u16::MAX >> 1, Forward);
-        asm::delay(1 << 24);
-        timers::set_left_motor_duty(&tim3, u16::MAX >> 1, Backward);
-        timers::set_right_motor_duty(&tim3, u16::MAX >> 1, Backward);
-        asm::delay(1 << 24);
+        timers::set_left_motor_duty(&tim3, u16::MAX / 2, Forward);
+        timers::set_right_motor_duty(&tim3, u16::MAX / 2, Forward);
+        delay_ms(3000);
         timers::set_left_motor_duty(&tim3, u16::MAX, Forward);
         timers::set_right_motor_duty(&tim3, u16::MAX, Forward);
-        asm::delay(1 << 24);
-        timers::set_left_motor_duty(&tim3, 0, Forward);
-        timers::set_right_motor_duty(&tim3, 0, Forward);
-        asm::delay(1 << 24);
+        delay_ms(4000);
+        for duty in (0..=u16::MAX).step_by(1 << 11).rev() {
+            timers::set_left_motor_duty(&tim3, duty, Forward);
+            timers::set_right_motor_duty(&tim3, duty, Forward);
+            delay_ms(200);
+        }
     }
 }

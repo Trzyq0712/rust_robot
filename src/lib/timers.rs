@@ -151,9 +151,11 @@ pub fn configure_tim9(tim: &TIM9) {
 }
 
 /// Configure TIM2 to trigger TIM9 pulse.
+/// Will trigger every 100ms.
 pub fn configure_tim2(tim: &TIM2) {
     tim.cr2.write(|w| w.mms().update());
-    tim.arr.write(|w| w.arr().bits(1 << 24));
+    let v = 16 * 100_000;
+    tim.arr.write(|w| w.arr().bits(v));
 }
 
 /// Configure TIM4 to measure pulse lengths of the ultrasound sensors.
@@ -172,6 +174,7 @@ pub fn configure_tim4(tim: &TIM4) {
             .bits(0b0110)
     });
     tim.arr.write(|w| w.arr().bits(u16::MAX));
+    tim.psc.write(|w| w.psc().bits(15));
     tim.ccer.write(|w| {
         // enable channels
         w.cc3e().set_bit();
