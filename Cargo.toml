@@ -24,17 +24,22 @@ test = false
 bench = false
 
 [[bin]]
+name = "assignment2"
+test = false
+bench = false
+
+[[bin]]
+name = "assignment3"
+test = false
+bench = false
+
+[[bin]]
 name = "interrupts"
 test = false
 bench = false
 
 [[bin]]
 name = "playground"
-test = false
-bench = false
-
-[[bin]]
-name = "assignment2"
 test = false
 bench = false
 

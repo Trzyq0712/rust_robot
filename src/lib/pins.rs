@@ -83,3 +83,11 @@ pub fn configure_led_indicators(gpiob: &GPIOB) {
     configure_pb10(gpiob);
     configure_pb11(gpiob);
 }
+
+pub fn configure_pa0(port: &GPIOA) {
+    port.moder.modify(|_, w| w.moder0().analog());
+}
+
+pub fn configure_pa1(port: &GPIOA) {
+    port.moder.modify(|_, w| w.moder1().analog());
+}
