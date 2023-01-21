@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use core::mem;
 use cortex_m::asm;
 use my_hal::{adc, dma, pins, timers};
 
@@ -55,67 +56,45 @@ fn main() -> ! {
     adc::configure_adc(&adc1);
     adc1.cr2.modify(|_, w| w.swstart().start());
 
-    unsafe {
-        stm32::NVIC::unmask(stm32::interrupt::ADC);
-    }
-
-    const LEFT_MOTOR_DUTY: u16 = (u16::MAX as f32) as u16;
+    const LEFT_MOTOR_DUTY: u16 = (u16::MAX as f32 * 0.9) as u16;
     // adjust max duty to go straight
-    const RIGHT_MOTOR_DUTY: u16 = (u16::MAX as f32 * 0.82) as u16;
+    const RIGHT_MOTOR_DUTY: u16 = (u16::MAX as f32 * 0.75 * 0.9) as u16;
+
+    const MEASUREMENTS: usize = 16;
+    let mut center_pos = 0;
+    for _ in 0..MEASUREMENTS {
+        let avg = unsafe { INFRARED }.iter().sum::<u16>();
+        center_pos += avg as u32;
+        asm::delay(1000);
+    }
+    let center_pos: u16 = (center_pos / MEASUREMENTS as u32 / 2) as u16;
+
+    const KP: f32 = 200.0;
+    const KI: f32 = 5.0;
+    const FD: f32 = 50.0;
+
+    let mut left_duty = LEFT_MOTOR_DUTY as i32;
+    let mut right_duty = RIGHT_MOTOR_DUTY as i32;
+
+    let mut sum_of_errors = 0;
+    let mut prev_error = 0;
+
+    rprintln!("{}", center_pos);
 
     loop {
-        let [left, right] = unsafe { INFRARED };
-        use timers::Direction::*;
-        let is_black = (left > 500, right > 500);
-        let (left_dir, right_dir) = match is_black {
-            (true, false) => (Forward, Backward),
-            (false, true) => (Backward, Forward),
-            _ => (Forward, Forward),
-        };
-        timers::set_left_motor_duty(
-            &tim3,
-            if left_dir == Forward {
-                LEFT_MOTOR_DUTY / 3 * 2
-            } else {
-                LEFT_MOTOR_DUTY
-            },
-            left_dir,
-        );
-        timers::set_right_motor_duty(
-            &tim3,
-            if right_dir == Forward {
-                RIGHT_MOTOR_DUTY / 3 * 2
-            } else {
-                RIGHT_MOTOR_DUTY
-            },
-            right_dir,
-        );
-        rprintln!("Dr: {}", adc1.dr.read().bits());
-        rprintln!("NDTR: {}", dma2.st[0].ndtr.read().bits());
-        rprintln!("Error: {}", dma2.lisr.read().dmeif0().is_error());
-        rprintln!("Left reading: {}, Right reading: {}", left, right);
-        rprintln!("Left dir: {:?}, Right dir: {:?}", left_dir, right_dir);
-        asm::delay(10_000_000);
-        //        let diff = u16::abs_diff(left, right);
-        //
-        //        let mut duties = (LEFT_MOTOR_DUTY, RIGHT_MOTOR_DUTY);
-        //        let mut directions = (Forward, Forward);
-        //
-        //        match diff {
-        //            0..=400 => {}
-        //            401..=600 => duties = (duties.0 / 3 * 2, duties.1),
-        //            601..=1000 => duties = (duties.0 / 3, duties.1),
-        //            1001..=1500 => duties = (0, duties.1),
-        //            1501..=u16::MAX => directions = (Backward, Forward),
-        //        };
-        //
-        //        if left > right {
-        //            mem::swap(&mut duties.0, &mut duties.1);
-        //            mem::swap(&mut directions.0, &mut directions.1);
-        //        }
-        //        // asm::delay(10_000_000);
-        //        timers::set_left_motor_duty(&tim3, duties.0, directions.0);
-        //        timers::set_right_motor_duty(&tim3, duties.1, directions.1);
+        let readings = unsafe { INFRARED };
+        let error = center_pos - readings[0];
+        let adjustment =
+            KP * error as f32 + KI * sum_of_errors as f32 + FD * (prev_error - error) as f32;
+        left_duty += adjustment as i32;
+        right_duty -= adjustment as i32;
+        timers::set_left_motor(&tim3, left_duty);
+        timers::set_right_motor(&tim3, right_duty);
+
+        prev_error = error;
+        sum_of_errors += error;
+
+        asm::delay(200);
     }
 }
 

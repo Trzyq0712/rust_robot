@@ -5,12 +5,12 @@ pub fn configure_dma2(dma: &DMA2, base_mem: *const u16) {
     dma.st[0].cr.write(|w| {
         w.pfctrl().dma(); // The DMA will control the flow of the data
         w.dir().peripheral_to_memory(); // Copy from peripheral to memory
-        w.chsel().bits(0); // Use ADC1 for Straam0
+        w.chsel().bits(0); // Use ADC1 for Stream0
         w.psize().bits16(); // Transfer 16 bits from the peripheral
         w.msize().bits16(); // Save 16 bits in memory
         w.minc().incremented(); // We want it to increment the pointer after each transfer
         w.circ().enabled(); // We want it to continuosly copy over the 2 ADC readings
-        w.dmeie().enabled()
+        w.pl().high()
     });
     dma.st[0]
         .m0ar

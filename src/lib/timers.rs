@@ -61,6 +61,20 @@ pub enum Direction {
     Backward,
 }
 
+pub fn set_left_motor(tim: &TIM3, mut duty: i32) {
+    duty = duty.clamp(-(u16::MAX as i32), u16::MAX as i32);
+    let duties = if duty > 0 { (duty, 0) } else { (0, duty) };
+    tim.ccr3().write(|w| w.ccr().bits(duties.0 as u16));
+    tim.ccr4().write(|w| w.ccr().bits(duties.1 as u16));
+}
+
+pub fn set_right_motor(tim: &TIM3, mut duty: i32) {
+    duty = duty.clamp(-(u16::MAX as i32), u16::MAX as i32);
+    let duties = if duty > 0 { (duty, 0) } else { (0, duty) };
+    tim.ccr1().write(|w| w.ccr().bits(duties.0 as u16));
+    tim.ccr2().write(|w| w.ccr().bits(duties.1 as u16));
+}
+
 pub fn set_left_motor_duty(tim: &TIM3, duty: u16, direction: Direction) {
     let values = match direction {
         Direction::Forward => (duty, 0),
