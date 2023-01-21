@@ -1,53 +1,54 @@
 use super::robot::{Motor, SensorReadings};
-pub trait State {
-    fn process_state(&self, sr: &SensorReadings, left: &mut Motor, right: &mut Motor)
-        -> &dyn State;
-}
+// pub trait State {
+//     Output
+//     fn process_state(&self, sr: &SensorReadings, left: &mut Motor, right: &mut Motor)
+//         -> State;
+// }
 
-struct FollowLine;
+// struct FollowLine;
 
-impl State for FollowLine {
-    fn process_state(
-        &self,
-        sr: &SensorReadings,
-        left: &mut Motor,
-        right: &mut Motor,
-    ) -> &dyn State {
-        self
-    }
-}
+// impl State for FollowLine {
+//     fn process_state(
+//         &self,
+//         sr: &SensorReadings,
+//         left: &mut Motor,
+//         right: &mut Motor,
+//     ) -> &dyn State {
+//         self
+//     }
+// }
 
-struct ObstacleStop;
+// struct ObstacleStop;
 
-impl State for ObstacleStop {
-    fn process_state(
-        &self,
-        sr: &SensorReadings,
-        left: &mut Motor,
-        right: &mut Motor,
-    ) -> &dyn State {
-        if sr.front_distance.unwrap_or(u16::MAX) < 15 {
-            left.stop();
-            right.stop();
-        } else {
-            left.forward(left.max_duty());
-            right.forward(right.max_duty());
-        }
-        self
-    }
-}
+// impl State for ObstacleStop {
+//     fn process_state(
+//         &self,
+//         sr: &SensorReadings,
+//         left: &mut Motor,
+//         right: &mut Motor,
+//     ) -> &dyn State {
+//         if sr.front_distance.unwrap_or(u16::MAX) < 15 {
+//             left.stop();
+//             right.stop();
+//         } else {
+//             left.forward(left.max_duty());
+//             right.forward(right.max_duty());
+//         }
+//         self
+//     }
+// }
 
-struct Stopped;
+// struct Stopped;
 
-impl State for Stopped {
-    fn process_state(
-        &self,
-        _sr: &SensorReadings,
-        left: &mut Motor,
-        right: &mut Motor,
-    ) -> &dyn State {
-        left.stop();
-        right.stop();
-        self
-    }
-}
+// impl State for Stopped {
+//     fn process_state(
+//         &self,
+//         _sr: &SensorReadings,
+//         left: &mut Motor,
+//         right: &mut Motor,
+//     ) -> &dyn State {
+//         left.stop();
+//         right.stop();
+//         self
+//     }
+// }

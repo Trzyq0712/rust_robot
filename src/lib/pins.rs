@@ -91,3 +91,8 @@ pub fn configure_pa0(port: &GPIOA) {
 pub fn configure_pa1(port: &GPIOA) {
     port.moder.modify(|_, w| w.moder1().analog());
 }
+
+pub fn configure_pa8(port: &GPIOA) {
+    port.moder.modify(|_, w| w.moder8().alternate());
+    port.afrh.modify(|_, w| w.afrh8().af1());
+}

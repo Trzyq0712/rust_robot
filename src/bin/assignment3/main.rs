@@ -97,15 +97,3 @@ fn main() -> ! {
         asm::delay(200);
     }
 }
-
-// #[interrupt]
-// fn ADC() {
-//     let readings = intr::free(|cs| {
-//         let adc = G_ADC1.borrow(cs).borrow_mut();
-//         let left = adc.as_ref().unwrap().jdr1().read().jdata().bits();
-//         let right = adc.as_ref().unwrap().jdr2().read().jdata().bits();
-//         adc.as_ref().unwrap().sr.modify(|_, w| w.jeoc().clear_bit());
-//         (left, right)
-//     });
-//     intr::free(|cs| G_INFRARED.borrow(cs).set(readings));
-// }

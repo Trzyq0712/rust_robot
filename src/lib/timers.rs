@@ -1,4 +1,4 @@
-use stm32f4::stm32f401::{TIM2, TIM3, TIM4, TIM5, TIM9};
+use stm32f4::stm32f401::{TIM1, TIM2, TIM3, TIM4, TIM5, TIM9};
 
 // the internal clock is running at 16MHz
 
@@ -155,4 +155,22 @@ pub fn configure_tim4(tim: &TIM4) {
         w.cc4p().set_bit();
         w.cc4np().set_bit()
     });
+}
+
+pub fn configure_tim1(tim: &TIM1) {
+    tim.smcr.write(|w| {
+        w.ts().ti1fp1();
+        w.sms().ext_clock_mode()
+    });
+    tim.ccmr1_input().write(|w| {
+        w.cc1s().ti1();
+        w.ic1f().bits(0b1111)
+    });
+    tim.ccer.write(|w| {
+        w.cc1p().clear_bit();
+        w.cc1np().clear_bit()
+    });
+    tim.arr.write(|w| w.arr().bits(180 * 20 / 21));
+    tim.cr1.write(|w| w.cen().enabled());
+    tim.dier.write(|w| w.uie().enabled());
 }

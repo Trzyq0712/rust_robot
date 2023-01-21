@@ -3,6 +3,7 @@
 
 use core::cell::RefCell;
 
+use cortex_m::asm;
 use my_hal::{distance::DistanceMeasurer, pins, timers};
 
 // Halt on panic
@@ -13,7 +14,7 @@ use cortex_m_rt::entry;
 use stm32::interrupt;
 use stm32f4::stm32f401 as stm32;
 
-// use rtt_target::{rprintln, rtt_init_print};
+use rtt_target::{rprintln, rtt_init_print};
 
 struct Measurements {
     front: DistanceMeasurer,
@@ -29,6 +30,7 @@ static G_TIM4: Mutex<RefCell<Option<stm32::TIM4>>> = Mutex::new(RefCell::new(Non
 
 #[entry]
 fn main() -> ! {
+    rtt_init_print!();
     let dp = stm32::Peripherals::take().unwrap();
 
     let rcc = dp.RCC;
@@ -81,6 +83,7 @@ fn main() -> ! {
 
     loop {
         let front_dist = intr::free(|cs| G_DISTANCES.borrow(cs).borrow().front.get_distance_cm());
+        rprintln!("D: {}", &front_dist);
         let duties = if front_dist < 15 {
             (0, 0)
         } else {
@@ -88,6 +91,7 @@ fn main() -> ! {
         };
         timers::set_left_motor_duty(&tim3, duties.0, timers::Direction::Forward);
         timers::set_right_motor_duty(&tim3, duties.1, timers::Direction::Forward);
+        asm::delay(10_000_000);
     }
 }
 

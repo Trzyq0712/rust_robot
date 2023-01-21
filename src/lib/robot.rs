@@ -1,4 +1,4 @@
-use super::states::State;
+use core::ptr;
 
 type Cm = u16;
 
@@ -10,68 +10,78 @@ pub struct SensorReadings {
     pub right_infrared: u16,
 }
 
-#[derive(Clone, Copy)]
+pub struct Motor {
+    max_duty: *const u16,
+    fd_duty: *mut u16,
+    bk_duty: *mut u16,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Dir {
     Fd,
     Bk,
 }
 
-pub struct Motor<'a> {
-    duty: u16,
-    dir: Dir,
-    get_max_duty: &'a dyn Fn() -> u16,
-    set_duty: &'a dyn Fn(u16, Dir),
-}
-
-impl<'a> Motor<'a> {
-    pub fn new(get_max_duty: &'a dyn Fn() -> u16, set_duty: &'a dyn Fn(u16, Dir)) -> Motor<'a> {
-        set_duty(0, Dir::Fd);
+impl Motor {
+    pub unsafe fn new(max_duty: *const u16, fd_duty: *mut u16, bk_duty: *mut u16) -> Motor {
+        unsafe {
+            ptr::write_volatile(fd_duty, 0);
+            ptr::write_volatile(bk_duty, 0);
+        }
         Self {
-            duty: 0,
-            dir: Dir::Fd,
-            get_max_duty,
-            set_duty,
+            max_duty,
+            fd_duty,
+            bk_duty,
         }
     }
 
     pub fn forward(&mut self, duty: u16) {
-        self.duty = duty;
-        self.dir = Dir::Fd;
-        (self.set_duty)(duty, Dir::Fd);
+        unsafe {
+            ptr::write_volatile(self.fd_duty, duty.min(ptr::read_volatile(self.max_duty)));
+            ptr::write_volatile(self.bk_duty, 0);
+        }
     }
 
     pub fn backward(&mut self, duty: u16) {
-        self.duty = duty;
-        self.dir = Dir::Bk;
-        (self.set_duty)(duty, Dir::Bk);
+        unsafe {
+            ptr::write_volatile(self.bk_duty, duty.min(ptr::read_volatile(self.max_duty)));
+            ptr::write_volatile(self.fd_duty, 0);
+        }
     }
 
     pub fn stop(&mut self) {
-        self.duty = 0;
-        (self.set_duty)(0, self.dir);
+        self.forward(0);
     }
 
     pub fn get_info(&self) -> (u16, Dir) {
-        (self.duty, self.dir)
+        unsafe {
+            let fd_duty = ptr::read_volatile(self.fd_duty);
+            let bk_duty = ptr::read_volatile(self.bk_duty);
+            if bk_duty == 0 {
+                (fd_duty, Dir::Fd)
+            } else {
+                (bk_duty, Dir::Bk)
+            }
+        }
     }
 
-    pub fn max_duty(&self) -> u16 {
-        (self.get_max_duty)()
+    pub fn get_max_duty(&self) -> u16 {
+        unsafe { ptr::read_volatile(self.max_duty) }
     }
 }
 
-pub struct Robot<'a> {
+pub struct Robot {
     sensors: SensorReadings,
-    motors: (Motor<'a>, Motor<'a>),
-    state: &'a dyn State,
+    left_motor: Motor,
+    right_motor: Motor,
 }
 
-impl<'a> Robot<'a> {
-    pub fn new(motors: (Motor<'a>, Motor<'a>), state: &'a dyn State) -> Self {
+impl Robot {
+    pub fn new(left_motor: Motor, right_motor: Motor) -> Self {
         Self {
             sensors: SensorReadings::default(),
-            motors,
-            state,
+            left_motor,
+            right_motor,
         }
     }
 
@@ -79,9 +89,13 @@ impl<'a> Robot<'a> {
         self.sensors = sr;
     }
 
-    pub fn step_state(&mut self) {
-        self.state =
-            self.state
-                .process_state(&self.sensors, &mut self.motors.0, &mut self.motors.1);
+    pub fn left_motor(&mut self) -> &mut Motor {
+        &mut self.left_motor
+    }
+
+    pub fn right_motor(&mut self) -> &mut Motor {
+        &mut self.right_motor
     }
 }
+
+unsafe impl Send for Robot {}
