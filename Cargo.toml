@@ -34,6 +34,11 @@ test = false
 bench = false
 
 [[bin]]
+name = "assignment4"
+test = false
+bench = false
+
+[[bin]]
 name = "assignment5"
 test = false
 bench = false

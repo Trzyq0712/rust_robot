@@ -4,8 +4,8 @@ type Cm = u16;
 
 #[derive(Default)]
 pub struct SensorReadings {
-    pub front_distance: Option<Cm>,
-    pub left_distance: Option<Cm>,
+    pub front_distance: Cm,
+    pub left_distance: Cm,
     pub left_infrared: u16,
     pub right_infrared: u16,
 }
@@ -87,6 +87,10 @@ impl Robot {
 
     pub fn update_sensors(&mut self, sr: SensorReadings) {
         self.sensors = sr;
+    }
+
+    pub fn get_sensor_readings(&self) -> &SensorReadings {
+        &self.sensors
     }
 
     pub fn left_motor(&mut self) -> &mut Motor {

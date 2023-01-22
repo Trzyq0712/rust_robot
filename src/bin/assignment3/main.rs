@@ -1,8 +1,9 @@
 #![no_main]
 #![no_std]
 
-use core::mem;
 use cortex_m::asm;
+use my_hal::robot::{Motor, Robot, SensorReadings};
+use my_hal::states::State;
 use my_hal::{adc, dma, pins, timers};
 
 // Halt on panic
@@ -10,7 +11,6 @@ use panic_halt as _; // panic handler
 
 // use cortex_m::{interrupt as intr, interrupt::Mutex};
 use cortex_m_rt::entry;
-use stm32::interrupt;
 use stm32f4::stm32f401 as stm32;
 
 use rtt_target::{rprintln, rtt_init_print};
@@ -56,44 +56,34 @@ fn main() -> ! {
     adc::configure_adc(&adc1);
     adc1.cr2.modify(|_, w| w.swstart().start());
 
-    const LEFT_MOTOR_DUTY: u16 = (u16::MAX as f32 * 0.9) as u16;
-    // adjust max duty to go straight
-    const RIGHT_MOTOR_DUTY: u16 = (u16::MAX as f32 * 0.75 * 0.9) as u16;
+    let left_motor = unsafe {
+        Motor::new(
+            tim3.arr.as_ptr() as *const u16,
+            tim3.ccr3().as_ptr() as *mut u16,
+            tim3.ccr4().as_ptr() as *mut u16,
+        )
+    };
 
-    const MEASUREMENTS: usize = 16;
-    let mut center_pos = 0;
-    for _ in 0..MEASUREMENTS {
-        let avg = unsafe { INFRARED }.iter().sum::<u16>();
-        center_pos += avg as u32;
-        asm::delay(1000);
-    }
-    let center_pos: u16 = (center_pos / MEASUREMENTS as u32 / 2) as u16;
+    let right_motor = unsafe {
+        Motor::new(
+            tim3.arr.as_ptr() as *const u16,
+            tim3.ccr1().as_ptr() as *mut u16,
+            tim3.ccr2().as_ptr() as *mut u16,
+        )
+    };
 
-    const KP: f32 = 200.0;
-    const KI: f32 = 5.0;
-    const FD: f32 = 50.0;
+    let mut robot = Robot::new(left_motor, right_motor);
 
-    let mut left_duty = LEFT_MOTOR_DUTY as i32;
-    let mut right_duty = RIGHT_MOTOR_DUTY as i32;
-
-    let mut sum_of_errors = 0;
-    let mut prev_error = 0;
-
-    rprintln!("{}", center_pos);
+    let mut state = State::FollowingLine;
 
     loop {
         let readings = unsafe { INFRARED };
-        let error = center_pos - readings[0];
-        let adjustment =
-            KP * error as f32 + KI * sum_of_errors as f32 + FD * (prev_error - error) as f32;
-        left_duty += adjustment as i32;
-        right_duty -= adjustment as i32;
-        timers::set_left_motor(&tim3, left_duty);
-        timers::set_right_motor(&tim3, right_duty);
-
-        prev_error = error;
-        sum_of_errors += error;
-
-        asm::delay(200);
+        let readings = SensorReadings {
+            left_infrared: readings[0],
+            right_infrared: readings[1],
+            ..Default::default()
+        };
+        robot.update_sensors(readings);
+        state = state.process_state(&mut robot);
     }
 }
