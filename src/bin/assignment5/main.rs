@@ -90,7 +90,7 @@ fn main() -> ! {
     let mut robot = Robot::new(left_motor, right_motor);
     robot.left_motor().forward(u16::MAX);
     robot.right_motor().forward(u16::MAX - 11_500);
-    tim1.arr.write(|w| w.arr().bits(DISTANCE));
+    tim1.arr.write(|w| w.arr().bits(DISTANCE * 20 / 21));
 
     intr::free(|cs| {
         G_TIM1.borrow(cs).replace(Some(tim1));
