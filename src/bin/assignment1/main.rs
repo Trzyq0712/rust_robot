@@ -39,5 +39,6 @@ fn main() -> ! {
             timers::set_right_motor_duty(&tim3, duty, Forward);
             delay_ms(200);
         }
+        delay_ms(5000);
     }
 }

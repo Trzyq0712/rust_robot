@@ -1,3 +1,5 @@
+use core::cell::RefCell;
+use cortex_m::interrupt::Mutex;
 pub struct DistanceMeasurer {
     rising: Option<u16>,
     time_us: u16,
@@ -26,3 +28,13 @@ impl DistanceMeasurer {
         }
     }
 }
+
+pub struct Measurements {
+    pub front: DistanceMeasurer,
+    pub side: DistanceMeasurer,
+}
+
+pub static G_DISTANCES: Mutex<RefCell<Measurements>> = Mutex::new(RefCell::new(Measurements {
+    front: DistanceMeasurer::new(),
+    side: DistanceMeasurer::new(),
+}));
