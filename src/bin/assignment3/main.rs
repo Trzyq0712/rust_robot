@@ -1,22 +1,18 @@
 #![no_main]
 #![no_std]
 
-use my_hal::robot::{self, Robot, SensorReadings, ROBOT};
+use my_hal::robot::{Robot, SensorReadings};
 use my_hal::states::State;
 use my_hal::{adc, dma, pins, timers};
 
 // Halt on panic
 use panic_halt as _; // panic handler
 
-use cortex_m::interrupt::free;
 use cortex_m_rt::entry;
 use stm32f4::stm32f401 as stm32;
 
-use rtt_target::{rprintln, rtt_init_print};
-
 #[entry]
 fn main() -> ! {
-    rtt_init_print!();
     let dp = stm32::Peripherals::take().unwrap();
 
     let rcc = dp.RCC;

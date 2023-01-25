@@ -1,6 +1,5 @@
 #![no_main]
 #![no_std]
-
 use cortex_m::asm;
 use cortex_m::interrupt::{free, Mutex};
 use my_hal::robot::{Robot, SensorReadings};
@@ -41,7 +40,6 @@ fn main() -> ! {
         w.adc1en().enabled();
         w.tim9en().enabled()
     });
-
     pins::configure_motor_pins(&dp.GPIOB);
     pins::configure_ultrasound_pins(&dp.GPIOA, &dp.GPIOB);
     pins::configure_pa0(&dp.GPIOA);

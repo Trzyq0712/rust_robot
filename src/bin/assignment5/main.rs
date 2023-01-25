@@ -17,7 +17,7 @@ use cortex_m::interrupt::free;
 use cortex_m_rt::entry;
 use stm32f4::stm32f401 as stm32;
 
-const DISTANCE: u32 = 110;
+const DISTANCE: u32 = 27 * 5;
 
 #[entry]
 fn main() -> ! {
